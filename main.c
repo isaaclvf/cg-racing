@@ -1,24 +1,25 @@
 #include <GL/gl.h>
 #include <GL/glut.h>
-#include <math.h>
 #include <stdbool.h>
 
 #include "graphics.h"
 
-typedef struct {
-  float x, y, z;
-  float radius;
-  bool collected;
-} Item;
-
-#define MAX_ITEMS 100
-Item items[MAX_ITEMS];
-int itemCount = 0;
+// typedef struct {
+//   float x, y, z;
+//   float radius;
+//   bool collected;
+// } Item;
+//
+// #define MAX_ITEMS 100
+// Item items[MAX_ITEMS];
+// int itemCount = 0;
 
 int windowWidth = 800;
 int windowHeight = 600;
 
 float carX = 0.0f; // Car's initial position (centered on the road)
+float carZ = 10.0f;
+
 const float leftPosition = -2.0f;
 const float centerPosition = 0.0f;
 const float rightPosition = 2.0f;
@@ -27,9 +28,14 @@ float roadWidth = 6.0f;    // Width of the road to fit three lanes
 float roadLength = 500.0f; // Length of the road to extend along the z-axis
 float laneWidth = 2.0f;    // Width of each lane (same as car’s x-move distance)
 
-// TODO: add effect of approaching sphere
-float sphereZ = 0.0f; // Position the sphere near the end of the road
-float sphereY = 1.0f; // Height of the sphere above the road
+typedef struct {
+  float x, y, z;
+  bool collected;
+} Item;
+
+Item items[3] = {{.x = 0.0f, .y = 1.0f, .z = -40.0f, .collected = false},
+                 {.x = 2.0f, .y = 1.0f, .z = -65.0f, .collected = false},
+                 {.x = -2.0f, .y = 1.0f, .z = -90.0f, .collected = false}};
 
 float roadOffset = 0.0f; // Controls the road's scrolling effect
 float roadSpeed = 0.35f; // Speed at which the road scrolls backward
@@ -40,16 +46,28 @@ GLfloat lightPos[4] = {5.0f, 10.0f, 5.0f, 1.0f}; // Position of the light source
 GLfloat roadPlane[4] = {0.0f, 1.0f, 0.0f,
                         0.5f}; // The plane equation for y = -0.5
 
-int checkCollision(float px, float py, float pz, float pSize, Item item) {
-  if (item.collected)
-    return 0; // Skip if already collected
+// int checkCollision(float px, float py, float pz, float pSize, Item item) {
+//   if (item.collected)
+//     return 0; // Skip if already collected
+//
+//   float dx = px - item.x;
+//   float dy = py - item.y;
+//   float dz = pz - item.z;
+//
+//   float distance = sqrt(dx * dx + dy * dy + dz * dz);
+//   return distance < (pSize / 2.0f + item.radius);
+// }
 
-  float dx = px - item.x;
-  float dy = py - item.y;
-  float dz = pz - item.z;
+int checkCollision(float carX, float carZ, float itemX, float itemZ) {
+  float tolerance = 0.5f;
 
-  float distance = sqrt(dx * dx + dy * dy + dz * dz);
-  return distance < (pSize / 2.0f + item.radius);
+  if (carZ <= itemZ + tolerance && carZ >= itemZ - tolerance) {
+    if (carX <= itemX + tolerance && carX >= itemX - tolerance) {
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 void updateRoadOffset() {
@@ -64,7 +82,6 @@ void updateRoadOffset() {
 void idle() {
   glutPostRedisplay(); // Continuously request redraw
 }
-
 
 void display() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -81,9 +98,19 @@ void display() {
   drawRoad(roadWidth, roadOffset, roadLength);
   drawLaneLines(roadOffset, roadLength);
 
-  sphereZ += 0.01f;
-  drawFloatingSphere(sphereY, sphereZ);
-  drawCar(carX);
+  for (int i = 0; i < 3; i++) {
+    if (checkCollision(carX, carZ, items[i].x, items[i].z)) {
+      items[i].collected = true;
+    }
+
+    if (items[i].collected)
+      continue;
+
+    items[i].z += roadSpeed;
+    drawFloatingSphere(items[i].x, items[i].y, items[i].z);
+  }
+
+  drawCar(carX, carZ);
 
   glutSwapBuffers();
 }

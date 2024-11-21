@@ -121,19 +121,19 @@ void drawLaneLines(float roadOffset, float roadLength) {
   }
 }
 
-void drawFloatingSphere(float sphereY, float sphereZ) {
+void drawFloatingSphere(float sphereX, float sphereY, float sphereZ) {
   glPushMatrix();
   setGoldMaterial();
-  glTranslatef(0.0f, sphereY, sphereZ); // Position the sphere
+  glTranslatef(sphereX, sphereY, sphereZ); // Position the sphere
   // glutSolidSphere(0.5f, 32, 32);        // Draw sphere with radius 0.5
   glutSolidOctahedron();
   glPopMatrix();
 }
 
-void drawCar(float carX) {
+void drawCar(float carX, float carZ) {
   glPushMatrix();
   setCarMaterial();
-  glTranslatef(carX, 0.2f, 10.0f);
+  glTranslatef(carX, 0.2f, carZ);
   glutSolidCube(1.0);
   glPopMatrix();
 }
