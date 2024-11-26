@@ -4,7 +4,7 @@ CC = gcc
 
 CFLAGS = -Wall -Wextra -std=c11 -O2
 
-LDFLAGS = -lGL -lGLU -lglut -lm
+LDFLAGS = -lGL -lGLU -lglut -lm -lSDL2 -lSDL2_mixer
 
 SRC = main.c graphics.c
 OBJ = $(SRC:.c=.o)

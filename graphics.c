@@ -1,45 +1,142 @@
 #include <GL/gl.h>
 #include <GL/glut.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "graphics.h"
 
+typedef struct {
+    float x, y, z;
+} Vertex;
+
+typedef struct {
+    int v1, v2, v3;
+} Face;
+
+typedef struct {
+    Vertex *vertices;
+    Face *faces;
+    int vertexCount;
+    int faceCount;
+} Model;
+
+Model loadOBJ(const char *filename) {
+    Model model = {0};
+    FILE *file = fopen(filename, "r");
+
+    if (!file) {
+        fprintf(stderr, "Error: Cannot open file %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+
+    char line[128];
+    int vertexCount = 0, faceCount = 0;
+
+    // Passo 1: Contar vértices e faces
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "v ", 2) == 0) {
+            vertexCount++;
+        } else if (strncmp(line, "f ", 2) == 0) {
+            faceCount++;
+        }
+    }
+
+    model.vertices = (Vertex *)malloc(sizeof(Vertex) * vertexCount);
+    if (!model.vertices) {
+        fprintf(stderr, "Error: Could not allocate memory for vertices\n");
+        exit(EXIT_FAILURE);
+    }
+
+    model.faces = (Face *)malloc(sizeof(Face) * faceCount);
+    if (!model.faces) {
+        fprintf(stderr, "Error: Could not allocate memory for faces\n");
+        exit(EXIT_FAILURE);
+    }
+
+    model.vertexCount = vertexCount;
+    model.faceCount = faceCount;
+
+    rewind(file);
+    int vIndex = 0, fIndex = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "v ", 2) == 0) {
+            sscanf(line, "v %f %f %f", &model.vertices[vIndex].x, &model.vertices[vIndex].y, &model.vertices[vIndex].z);
+            vIndex++;
+        } else if (strncmp(line, "f ", 2) == 0) {
+            int v1, v2, v3;
+            // Tentando ler as faces em vários formatos possíveis
+            if (sscanf(line, "f %d/%*d/%*d %d/%*d/%*d %d/%*d/%*d", &v1, &v2, &v3) == 3 || // Formato com textura e normal
+                sscanf(line, "f %d//%*d %d//%*d %d//%*d", &v1, &v2, &v3) == 3 ||  // Formato com normal apenas
+                sscanf(line, "f %d %d %d", &v1, &v2, &v3) == 3) { // Formato simples
+                if (v1 <= 0 || v1 > model.vertexCount || v2 <= 0 || v2 > model.vertexCount || v3 <= 0 || v3 > model.vertexCount) {
+                    fprintf(stderr, "Error: Invalid face index in OBJ file\n");
+                    exit(EXIT_FAILURE);
+                }
+                model.faces[fIndex].v1 = v1;
+                model.faces[fIndex].v2 = v2;
+                model.faces[fIndex].v3 = v3;
+                fIndex++;
+            } else {
+                fprintf(stderr, "Error: Invalid face format in OBJ file: %s\n", line);
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    fclose(file);
+    return model;
+}
+
+
+void renderModel(const Model *model) {
+    glBegin(GL_TRIANGLES);
+    for (int i = 0; i < model->faceCount; i++) {
+        Face face = model->faces[i];
+
+        // OBJ usa índices baseados em 1, ajustar para 0
+        Vertex v1 = model->vertices[face.v1 - 1];
+        Vertex v2 = model->vertices[face.v2 - 1];
+        Vertex v3 = model->vertices[face.v3 - 1];
+
+        glVertex3f(v1.x, v1.y, v1.z);
+        glVertex3f(v2.x, v2.y, v2.z);
+        glVertex3f(v3.x, v3.y, v3.z);
+    }
+    glEnd();
+}
+
 void initOpenGL() {
-  // Set the background color (RGBA)
-  glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black background
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black background
+    glEnable(GL_DEPTH_TEST);  // Enable depth testing for z-buffering
+    glEnable(GL_CULL_FACE);   // Enable backface culling
+    glCullFace(GL_BACK);
 
-  // Enable depth testing for z-buffering
-  glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);     // Enable lighting
+    glEnable(GL_LIGHT0);       // Default light source
 
-  // Enable backface culling
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
+    GLfloat ambientLight[] = {0.2f, 0.2f, 0.2f, 1.0f};
+    GLfloat diffuseLight[] = {0.8f, 0.8f, 0.8f, 1.0f};
+    GLfloat specularLight[] = {1.0f, 1.0f, 1.0f, 1.0f};
+    GLfloat lightPosition[] = {0.0f, 10.0f, 5.0f, 1.0f};
 
-  // Enable lighting
-  glEnable(GL_LIGHTING);
-  glEnable(GL_LIGHT0); // Default light source
-
-  // Configure light properties
-  GLfloat ambientLight[] = {0.2f, 0.2f, 0.2f, 1.0f};
-  GLfloat diffuseLight[] = {0.8f, 0.8f, 0.8f, 1.0f};
-  GLfloat specularLight[] = {1.0f, 1.0f, 1.0f, 1.0f};
-  GLfloat lightPosition[] = {0.0f, 10.0f, 5.0f, 1.0f};
-
-  glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
-  glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
-  glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight);
-  glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight);
+    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
 }
 
 void setRoadMaterial() {
-  GLfloat ambient[] = {0.1f, 0.1f, 0.1f, 1.0f};
-  GLfloat diffuse[] = {0.2f, 0.2f, 0.2f, 1.0f};
-  GLfloat specular[] = {0.0f, 0.0f, 0.0f, 1.0f};
-  GLfloat shininess = 10.0f;
+    GLfloat ambient[] = {0.1f, 0.1f, 0.1f, 1.0f};
+    GLfloat diffuse[] = {0.2f, 0.2f, 0.2f, 1.0f};
+    GLfloat specular[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    GLfloat shininess = 10.0f;
 
-  glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-  glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-  glMaterialf(GL_FRONT, GL_SHININESS, shininess);
+    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
 }
 
 void setLaneLineMaterial() {
@@ -91,16 +188,19 @@ void setGoldMaterial() {
 }
 
 void setCarMaterial() {
-  GLfloat ambient[] = {0.3f, 0.0f, 0.0f, 1.0f};
-  GLfloat diffuse[] = {0.8f, 0.0f, 0.0f, 1.0f};
-  GLfloat specular[] = {0.5f, 0.5f, 0.5f, 1.0f};
-  GLfloat shininess = 50.0f;
+    // Material rosa
+    GLfloat ambient[] = {0.3f, 0.0f, 0.3f, 1.0f};  // Rosa suave como ambiente
+    GLfloat diffuse[] = {1.0f, 0.0f, 1.0f, 1.0f}; // Cor rosa para o material
+    GLfloat specular[] = {0.5f, 0.0f, 0.5f, 1.0f}; // Reflexão especular rosa
+    GLfloat shininess = 50.0f; // Brilho do material
 
-  glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-  glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-  glMaterialf(GL_FRONT, GL_SHININESS, shininess);
+    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
 }
+
+
 
 void drawGround(float roadWidth, float roadOffset, float roadLength) {
   setGroundMaterial();
@@ -158,21 +258,35 @@ void drawFloatingSphere(float sphereX, float sphereY, float sphereZ) {
 }
 
 void drawCar(float carX, float carZ) {
-  glPushMatrix();
-  setCarMaterial();
-  glTranslatef(carX, 0.2f, carZ);
-  glutSolidCube(1.0);
-  glPopMatrix();
+    static Model carModel = {0};
+    static int isModelLoaded = 0;
+
+    if (!isModelLoaded) {
+        carModel = loadOBJ("assets/model/vaca.obj"); // Carregar o modelo apenas uma vez
+        if (carModel.vertexCount == 0 || carModel.faceCount == 0) {
+            fprintf(stderr, "Error: Car model not loaded correctly!\n");
+            exit(EXIT_FAILURE);
+        }
+        isModelLoaded = 1;
+    }
+
+    glPushMatrix();
+    setCarMaterial();  // Aplicando o material rosa
+    glTranslatef(carX, 0.2f, carZ); // Ajustando a posição do carro
+    glScalef(0.5f, 0.5f, 0.5f);  // Aumentando o tamanho do carro para testes
+    renderModel(&carModel);  // Renderizando o modelo do carro
+    glPopMatrix();
 }
 
+
 void setProjection() {
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
-  glOrtho(-10.0, 10.0, -10.0, 10.0, -10.0, 100.0);
-  glMatrixMode(GL_MODELVIEW);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(-10.0, 10.0, -10.0, 10.0, -10.0, 100.0);
+    glMatrixMode(GL_MODELVIEW);
 }
 
 void reshape(int width, int height) {
-  glViewport(0, 0, width, height);
-  setProjection();
+    glViewport(0, 0, width, height);
+    setProjection();
 }
